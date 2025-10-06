@@ -56,12 +56,21 @@ int main(int argc, char *argv[]) {
 	  end_scan();
     return 0;
   }
-  /* 作成する部分：トークンカウント用の配列？を初期化する */
+  /* トークンカウント用の配列を初期化 */
+  for (i = 0; i <= NUMOFTOKEN; i++) {
+    numtoken[i] = 0;
+  }
+  /* トークンをカウント */
   while ((token = scan()) >= 0) {
-    /* 作成する部分：トークンをカウントする */
+    numtoken[token]++;
   }
   end_scan();
-  /* 作成する部分:カウントした結果を出力する */
+  /* カウント結果を出力 */
+  for (i = 1; i <= NUMOFTOKEN; i++) {
+    if (numtoken[i] > 0) {
+      printf("%s\t%d\n", tokenstr[i], numtoken[i]);
+    }
+  }
   return 0;
 }
 
