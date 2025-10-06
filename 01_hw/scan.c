@@ -233,14 +233,16 @@ static int skip_comment_slash(void) {
     next_char();
 
     while (cbuf != EOF) {
-        if (cbuf == '\n' || cbuf == '\r') {
-            process_newline();
-        } else if (cbuf == '*') {
+        if (cbuf == '*') {
             next_char();
             if (cbuf == '/') {
                 next_char();
                 return 0;
             }
+            /* * の後が / でない場合、その文字をループの先頭で処理 */
+            continue;
+        } else if (cbuf == '\n' || cbuf == '\r') {
+            process_newline();
         } else {
             next_char();
         }
