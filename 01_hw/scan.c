@@ -233,14 +233,14 @@ static int skip_comment_slash(void) {
     next_char();
 
     while (cbuf != EOF) {
-        if (cbuf == '*') {
+        if (cbuf == '\n' || cbuf == '\r') {
+            process_newline();
+        } else if (cbuf == '*') {
             next_char();
             if (cbuf == '/') {
                 next_char();
                 return 0;
             }
-        } else if (cbuf == '\n' || cbuf == '\r') {
-            process_newline();
         } else {
             next_char();
         }

@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
   /* カウント結果を出力 */
   for (i = 1; i <= NUMOFTOKEN; i++) {
     if (numtoken[i] > 0) {
-      printf("%s\t%d\n", tokenstr[i], numtoken[i]);
+      printf("\"%s\"\t%d\n", tokenstr[i], numtoken[i]);
     }
   }
   return 0;
