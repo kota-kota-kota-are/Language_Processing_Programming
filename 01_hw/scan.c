@@ -18,6 +18,7 @@ char string_attr[MAXSTRSIZE];         // 文字列・名前トークンの属性
 static int is_letter(int c);
 static int is_digit(int c);
 static void next_char(void);
+static void process_newline(void);
 static int scan_name(void);
 static int scan_number(void);
 static int scan_string(void);
@@ -51,6 +52,27 @@ static void next_char(void) {
 }
 
 /**
+ * @brief 改行を処理する（4パターンに対応）
+ */
+static void process_newline(void) {
+    if (cbuf == '\n') {
+        next_char();
+        /* \n\r の処理 */
+        if (cbuf == '\r') {
+            next_char();
+        }
+        linenum++;
+    } else if (cbuf == '\r') {
+        next_char();
+        /* \r\n の処理 */
+        if (cbuf == '\n') {
+            next_char();
+        }
+        linenum++;
+    }
+}
+
+/**
  * @brief キーワード検索
  * @return キーワードなら対応するトークン番号、そうでなければTNAME
  */
@@ -66,7 +88,7 @@ static int lookup_keyword(void) {
 
 /**
  * @brief 名前の読み取り
- * @return トークン番号（TNAME またはキーワード）
+ * @return トークン番号（TNAME またはキーワード）、エラー時はS_ERROR
  */
 static int scan_name(void) {
     int i = 0;
@@ -76,7 +98,16 @@ static int scan_name(void) {
     next_char();
 
     /* 英数字が続く限り読み取る */
-    while ((is_letter(cbuf) || is_digit(cbuf)) && i < MAXSTRSIZE - 1) {
+    while (is_letter(cbuf) || is_digit(cbuf)) {
+        if (i >= MAXSTRSIZE - 1) {
+            /* バッファオーバーフロー：残りの文字を読み飛ばす */
+            while (is_letter(cbuf) || is_digit(cbuf)) {
+                next_char();
+            }
+            fprintf(stderr, "ERROR: Line %d: Name too long (exceeds %d characters)\n",
+                    linenum, MAXSTRSIZE - 1);
+            return S_ERROR;
+        }
         string_attr[i++] = cbuf;
         next_char();
     }
@@ -101,6 +132,10 @@ static int scan_number(void) {
 
         /* 範囲チェック（0-32768） */
         if (num > 32768) {
+            /* 残りの数字を読み飛ばす */
+            while (is_digit(cbuf)) {
+                next_char();
+            }
             fprintf(stderr, "ERROR: Line %d: Number out of range (exceeds 32768)\n", linenum);
             return S_ERROR;
         }
@@ -116,6 +151,7 @@ static int scan_number(void) {
  */
 static int scan_string(void) {
     int i = 0;
+    int overflow = 0;
 
     /* 開始の ' をスキップ */
     next_char();
@@ -129,11 +165,18 @@ static int scan_string(void) {
             if (cbuf == '\'') {
                 if (i < MAXSTRSIZE - 1) {
                     string_attr[i++] = '\'';
+                } else {
+                    overflow = 1;
                 }
                 next_char();
             } else {
                 /* 文字列の終了 */
                 string_attr[i] = '\0';
+                if (overflow) {
+                    fprintf(stderr, "ERROR: Line %d: String too long (exceeds %d characters)\n",
+                            linenum, MAXSTRSIZE - 1);
+                    return S_ERROR;
+                }
                 return TSTRING;
             }
         } else if (cbuf == '\n' || cbuf == '\r') {
@@ -143,6 +186,8 @@ static int scan_string(void) {
         } else {
             if (i < MAXSTRSIZE - 1) {
                 string_attr[i++] = cbuf;
+            } else {
+                overflow = 1;
             }
             next_char();
         }
@@ -165,16 +210,8 @@ static int skip_comment_brace(void) {
         if (cbuf == '}') {
             next_char();
             return 0;
-        } else if (cbuf == '\n') {
-            linenum++;
-            next_char();
-        } else if (cbuf == '\r') {
-            next_char();
-            /* \r\n または \r の処理 */
-            if (cbuf == '\n') {
-                next_char();
-            }
-            linenum++;
+        } else if (cbuf == '\n' || cbuf == '\r') {
+            process_newline();
         } else {
             next_char();
         }
@@ -186,7 +223,7 @@ static int skip_comment_brace(void) {
 }
 
 /**
- * @brief slash-star ... star-slash 形式の注釈をスキップ
+ * @brief slash-asterisk ... asterisk-slash 形式の注釈をスキップ
  * @return 正常終了なら0、エラーならS_ERROR
  */
 static int skip_comment_slash(void) {
@@ -202,16 +239,8 @@ static int skip_comment_slash(void) {
                 next_char();
                 return 0;
             }
-        } else if (cbuf == '\n') {
-            linenum++;
-            next_char();
-        } else if (cbuf == '\r') {
-            next_char();
-            /* \r\n または \r の処理 */
-            if (cbuf == '\n') {
-                next_char();
-            }
-            linenum++;
+        } else if (cbuf == '\n' || cbuf == '\r') {
+            process_newline();
         } else {
             next_char();
         }
@@ -252,21 +281,8 @@ int scan(void) {
         }
 
         /* 改行処理（4パターン） */
-        if (cbuf == '\n') {
-            linenum++;
-            next_char();
-            /* \n\r の処理 */
-            if (cbuf == '\r') {
-                next_char();
-            }
-            continue;
-        } else if (cbuf == '\r') {
-            linenum++;
-            next_char();
-            /* \r\n の処理 */
-            if (cbuf == '\n') {
-                next_char();
-            }
+        if (cbuf == '\n' || cbuf == '\r') {
+            process_newline();
             continue;
         }
 
@@ -277,8 +293,6 @@ int scan(void) {
             }
             continue;
         } else if (cbuf == '/') {
-            int saved_pos = ftell(fp);
-            int saved_cbuf = cbuf;
             next_char();
             if (cbuf == '*') {
                 if (skip_comment_slash() == S_ERROR) {
@@ -286,10 +300,9 @@ int scan(void) {
                 }
                 continue;
             } else {
-                /* / だけの場合は記号として処理するため戻す */
-                /* ただし MPPL には / 記号がないため不正な文字 */
-                cbuf = saved_cbuf;
-                fseek(fp, saved_pos, SEEK_SET);
+                /* / の後に * がない場合は不正な文字 */
+                fprintf(stderr, "ERROR: Line %d: Invalid character '/' (ASCII 47)\n", linenum);
+                return S_ERROR;
             }
         }
 
