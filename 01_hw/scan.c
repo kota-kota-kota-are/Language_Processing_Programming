@@ -217,9 +217,8 @@ static int skip_comment_brace(void) {
         }
     }
 
-    /* EOF に達したが注釈が閉じられていない */
-    fprintf(stderr, "ERROR: Line %d: Comment not closed (EOF)\n", linenum);
-    return S_ERROR;
+    /* EOF に達した - EOFまでを注釈として処理する（仕様通り） */
+    return 0;
 }
 
 /**
@@ -248,9 +247,8 @@ static int skip_comment_slash(void) {
         }
     }
 
-    /* EOF に達したが注釈が閉じられていない */
-    fprintf(stderr, "ERROR: Line %d: Comment not closed (EOF)\n", linenum);
-    return S_ERROR;
+    /* EOF に達した - EOFまでを注釈として処理する（仕様通り） */
+    return 0;
 }
 
 /**
